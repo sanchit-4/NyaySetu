@@ -1,0 +1,75 @@
+{
+    "authenticity_check": {
+      "conflicting_terms": false,
+      "inconsistent_fonts": false,
+      "missing_signature_or_stamp": false,
+      "overall_authenticity": "High",
+      "suspicious_metadata": false
+    },
+    "auto_improved_clauses": [
+      {
+        "original": "You shall not at any time during or after your employment term with the company reveal any of the affairs/secrets/code of the Company to any other person(s) nor use or attempt to use any information which you may acquire in the course of your employment in any manner which may injure or cause loss to the company.",
+        "rewritten": "During and after your employment term, you must not disclose or misuse any confidential information, defined as any proprietary code, trade secrets, and business affairs, in a way that could harm the company."
+      },
+      {
+        "original": "The Company shall be at liberty at any time by notice in writing to summarily terminate the service of the employee if: - a) she/he is guilty of misconduct b) she/he is negligent in the discharge of her/his duties c) being absent or being unable to perform her/his duties and alleging ill-health as the cause thereof, she/he shall refuse to medical practitioner nominated by the company to examine her/him or shall fail to give to such medical practitioner the information necessary to report upon her/his state of health.",
+        "rewritten": "The Company may terminate employment with written notice if the employee: a) Commits defined misconduct, b) Displays negligence, defined as failing to perform duties as reasonably expected, c) Is absent or unable to work due to health reasons and refuses examination or fails to provide necessary information to a company-appointed medical practitioner."
+      }
+    ],
+    "clauses": [
+      {
+        "clause_text": "You will commence employment on 3rd June 2025, and your monthly internship stipend will be Rs 8,500 (fixed component) + Rs 3,000 performance bonus. Your salary includes the employer's and the employee\u2019s Provident Fund contributions.",
+        "detailed_explanation": "This clause clearly outlines the start date, salary components, and inclusion of Provident Fund contributions, providing transparency and clarity to the employee.",
+        "fix_suggestion": "No changes needed as the clause is clear and comprehensive.",
+        "issue_type": "Well-written",
+        "severity": "Low"
+      },
+      {
+        "clause_text": "Your notice period for this internship will be 30 days.",
+        "detailed_explanation": "The notice period is clearly stated, which is beneficial for both parties to manage transitions effectively.",
+        "fix_suggestion": "No changes needed as the clause is clear and concise.",
+        "issue_type": "Well-written",
+        "severity": "Low"
+      },
+      {
+        "clause_text": "You shall not at any time during or after your employment term with the company reveal any of the affairs/secrets/code of the Company to any other person(s) nor use or attempt to use any information which you may acquire in the course of your employment in any manner which may injure or cause loss to the company.",
+        "detailed_explanation": "The clause lacks specificity regarding what constitutes 'affairs/secrets/code,' which could lead to misinterpretations and potential legal disputes.",
+        "fix_suggestion": "Clarify what is considered confidential information by providing examples or categories. Specify the duration of the confidentiality obligation post-employment.",
+        "issue_type": "Ambiguous",
+        "severity": "High"
+      },
+      {
+        "clause_text": "The Company shall be at liberty at any time by notice in writing to summarily terminate the service of the employee if: - a) she/he is guilty of misconduct b) she/he is negligent in the discharge of her/his duties c) being absent or being unable to perform her/his duties and alleging ill-health as the cause thereof, she/he shall refuse to medical practitioner nominated by the company to examine her/him or shall fail to give to such medical practitioner the information necessary to report upon her/his state of health.",
+        "detailed_explanation": "This clause heavily favors the employer, allowing termination for broad and potentially subjective reasons without clear definitions or employee protections.",
+        "fix_suggestion": "Include definitions for 'misconduct' and 'negligence' and provide a fair process for termination, such as warnings or a disciplinary procedure.",
+        "issue_type": "Unilateral",
+        "severity": "Medium"
+      }
+    ],
+    "meta": {
+      "language_detected": "English",
+      "total_clauses_detected": 9,
+      "total_pages": 3,
+      "unusual_formatting_flags": [
+        "Inconsistent spacing in address"
+      ]
+    },
+    "positive_signals": {
+      "clear_timeline": true,
+      "notice_period_mentioned": true,
+      "registered_company_name_present": true,
+      "salary_mentioned": true,
+      "signed_by_authority": true
+    },
+    "risk_score": 65,
+    "safety_meter": "Medium",
+    "scam_indicators": {
+      "has_grammatical_errors": true,
+      "mentions_deposit_fee": false,
+      "missing_company_registration": false,
+      "too_good_to_be_true_claims": false,
+      "uses_free_email": false,
+      "uses_whatsapp_only_contact": false,
+      "vague_address_or_identity": false
+    }
+  }

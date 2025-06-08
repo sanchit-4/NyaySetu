@@ -73,7 +73,6 @@ export interface LearningModule {
 export interface UploadedFile {
   name: string;
   type: string; // e.g., 'image/png', 'image/jpeg'
-  base64Data: string; // Base64 encoded string of the image
   size: number; // File size in bytes
   objectURL?: string; // For previewing the image easily
 }

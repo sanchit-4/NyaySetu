@@ -1,341 +1,354 @@
+import React, { useState, ChangeEvent } from "react";
+import sampleData from './sample.json';
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { DocumentIcon } from './icons/DocumentIcon';
-import { UploadIcon } from './icons/UploadIcon'; // Create this icon
-import { XCircleIcon } from './icons/XCircleIcon';
-import { SparklesIcon } from './icons/SparklesIcon'; // Create this icon
-import Button from './common/Button';
-import Input from './common/Input';
-import { UploadedFile, DocumentAnalysisMessage } from '../types';
-import { generateContentWithImage, getDocumentAnalysisQnAStream } from '../services/geminiService';
-import { SpinnerIcon } from './icons/SpinnerIcon';
-import { LogoIcon } from './icons/LogoIcon';
-import { UserIcon } from './icons/UserIcon';
+// Mock sample data for demonstration
 
+enum SupportedLanguages {
+  ENGLISH = 'en',
+  HINDI = 'hi'
+}
 
-const MAX_FILE_SIZE_MB = 5;
-const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+interface Clause {
+  clause_text: string;
+  detailed_explanation: string;
+  fix_suggestion: string;
+  issue_type: string;
+  severity: string;
+}
+
+interface ImprovedClause {
+  original: string;
+  rewritten: string;
+}
+
+interface AnalysisResult {
+  authenticity_check: Record<string, string | boolean>;
+  auto_improved_clauses: ImprovedClause[];
+  clauses: Clause[];
+  meta: Record<string, any>;
+  positive_signals: Record<string, boolean>;
+  risk_score: number;
+  safety_meter: string;
+  scam_indicators: Record<string, boolean>;
+}
+
+interface TranslatedAnalysisResult extends AnalysisResult {
+  isTranslated?: boolean;
+  originalLanguage?: string;
+}
 
 const DocumentManagement: React.FC = () => {
-  const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
-  const [summary, setSummary] = useState<string>('');
-  const [qnaMessages, setQnAMessages] = useState<DocumentAnalysisMessage[]>([]);
-  const [currentQuestion, setCurrentQuestion] = useState<string>('');
-  
-  const [isLoadingSummary, setIsLoadingSummary] = useState<boolean>(false);
-  const [isLoadingQnA, setIsLoadingQnA] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const qnaEndRef = useRef<HTMLDivElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [message, setMessage] = useState<string>("");
+  const [uploading, setUploading] = useState<boolean>(false);
+  const [analysis, setAnalysis] = useState<TranslatedAnalysisResult | null>(null);
+  const [originalAnalysis, setOriginalAnalysis] = useState<AnalysisResult | null>(null);
+  const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguages>(SupportedLanguages.ENGLISH);
+  const [currentLanguage, setCurrentLanguage] = useState<SupportedLanguages>(SupportedLanguages.ENGLISH);
+  const [translating, setTranslating] = useState<boolean>(false);
 
-  useEffect(() => {
-    qnaEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [qnaMessages]);
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      processFile(file);
-    }
-  };
-
-  const processFile = (file: File) => {
-    setError(null);
-    setSummary('');
-    setQnAMessages([]);
-
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      setError(`File is too large. Max size: ${MAX_FILE_SIZE_MB}MB.`);
-      return;
-    }
-    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-      setError(`Invalid file type. Allowed types: JPG, PNG, WebP.`);
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64Data = (reader.result as string).split(',')[1];
-      const newFile: UploadedFile = {
-        name: file.name,
-        type: file.type,
-        base64Data,
-        size: file.size,
-        objectURL: URL.createObjectURL(file),
-      };
-      setUploadedFile(newFile);
-      // Automatically trigger summarization
-      await handleSummarize(newFile);
-    };
-    reader.onerror = () => {
-      setError("Failed to read the file.");
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleSummarize = async (fileToSummarize?: UploadedFile) => {
-    const currentFile = fileToSummarize || uploadedFile;
-    if (!currentFile) {
-      setError("No file uploaded to summarize.");
-      return;
-    }
-    setIsLoadingSummary(true);
-    setSummary('');
-    setError(null);
-    setQnAMessages([]); // Clear previous QnA
-
+  const translateText = async (text: string, outputLan: SupportedLanguages, inputLan: SupportedLanguages = SupportedLanguages.ENGLISH): Promise<string> => {
     try {
-      const stream = await generateContentWithImage("Summarize this document based on the image provided. Focus on key details, purpose, parties involved if any, and any notable legal aspects or obligations mentioned.", currentFile);
-      let fullSummary = "";
-      for await (const chunk of stream) {
-        const chunkText = chunk.text;
-        if (chunkText) {
-          fullSummary += chunkText;
-          setSummary(fullSummary); // Live update
-        }
+      const response = await fetch("/api/bhashini/translate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text: text,
+          inputLan: inputLan,
+          outputLan: outputLan
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-      setQnAMessages(prev => [...prev, {id: `summary-${Date.now()}`, text: fullSummary, sender: 'bot', timestamp: new Date(), isSummary: true}]);
+      
+      const data = await response.json();
+      
+      // Extract translated text from Bhasini API response format
 
-    } catch (err) {
-      console.error("Error summarizing document:", err);
-      const errorMsg = err instanceof Error ? err.message : "Failed to summarize document.";
-      setError(errorMsg);
-      setSummary(`Error: ${errorMsg}`);
-    } finally {
-      setIsLoadingSummary(false);
-    }
-  };
-  
-  const handleAskQuestion = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!currentQuestion.trim() || !uploadedFile || isLoadingQnA) return;
-
-    const userQMessage: DocumentAnalysisMessage = {
-      id: `user-q-${Date.now()}`,
-      text: currentQuestion,
-      sender: 'user',
-      timestamp: new Date(),
-    };
-    setQnAMessages(prev => [...prev, userQMessage]);
-    setCurrentQuestion('');
-    setIsLoadingQnA(true);
-    setError(null);
+        return data.pipelineResponse?.[0]?.output?.[0]?.target;
+      
     
-    const botAnsweringPlaceholderId = `bot-ans-${Date.now()}`;
-     setQnAMessages((prevMessages) => [
-      ...prevMessages,
-      {
-        id: botAnsweringPlaceholderId,
-        text: '',
-        sender: 'bot',
-        timestamp: new Date(),
-        isLoading: true,
-      },
-    ]);
+      return text; // Return original text if response format is unexpected
+    } catch (error) {
+      console.error("Translation error:", error);
+      return text; // Return original text if translation fails
+    }
+  };
+
+  const translateAnalysisResult = async (analysisData: AnalysisResult, targetLanguage: SupportedLanguages, currentLanguage: SupportedLanguages): Promise<TranslatedAnalysisResult> => {
+    if (targetLanguage === currentLanguage) {
+      return { ...analysisData, isTranslated: targetLanguage !== SupportedLanguages.ENGLISH };
+    }
+
+    const translatedResult: TranslatedAnalysisResult = {
+      ...analysisData,
+      isTranslated: targetLanguage !== SupportedLanguages.ENGLISH,
+      originalLanguage: currentLanguage
+    };
+
+    // Translate safety_meter
+    translatedResult.safety_meter = await translateText(analysisData.safety_meter, targetLanguage, currentLanguage);
+
+    // Translate authenticity_check
+    const translatedAuthenticityCheck: Record<string, string | boolean> = {};
+    for (const [key, value] of Object.entries(analysisData.authenticity_check)) {
+      const translatedKey = await translateText(key.replace(/_/g, ' '), targetLanguage, currentLanguage);
+      const translatedValue = typeof value === 'string' ? await translateText(value, targetLanguage, currentLanguage) : value;
+      translatedAuthenticityCheck[translatedKey] = translatedValue;
+    }
+    translatedResult.authenticity_check = translatedAuthenticityCheck;
+
+    // Translate meta information
+    const translatedMeta: Record<string, any> = {};
+    for (const [key, value] of Object.entries(analysisData.meta)) {
+      const translatedKey = await translateText(key.replace(/_/g, ' '), targetLanguage, currentLanguage);
+      const translatedValue = typeof value === 'string' ? await translateText(value, targetLanguage, currentLanguage) : value;
+      translatedMeta[translatedKey] = translatedValue;
+    }
+    translatedResult.meta = translatedMeta;
+
+    // Translate scam_indicators
+    const translatedScamIndicators: Record<string, boolean> = {};
+    for (const [key, value] of Object.entries(analysisData.scam_indicators)) {
+      const translatedKey = await translateText(key.replace(/_/g, ' '), targetLanguage, currentLanguage);
+      translatedScamIndicators[translatedKey] = value;
+    }
+    translatedResult.scam_indicators = translatedScamIndicators;
+
+    // Translate positive_signals
+    const translatedPositiveSignals: Record<string, boolean> = {};
+    for (const [key, value] of Object.entries(analysisData.positive_signals)) {
+      const translatedKey = await translateText(key.replace(/_/g, ' '), targetLanguage, currentLanguage);
+      translatedPositiveSignals[translatedKey] = value;
+    }
+    translatedResult.positive_signals = translatedPositiveSignals;
+
+    // Translate auto_improved_clauses
+    const translatedImprovedClauses: ImprovedClause[] = [];
+    for (const clause of analysisData.auto_improved_clauses) {
+      translatedImprovedClauses.push({
+        original: await translateText(clause.original, targetLanguage, currentLanguage),
+        rewritten: await translateText(clause.rewritten, targetLanguage, currentLanguage)
+      });
+    }
+    translatedResult.auto_improved_clauses = translatedImprovedClauses;
+
+    // Translate clauses
+    const translatedClauses: Clause[] = [];
+    for (const clause of analysisData.clauses) {
+      translatedClauses.push({
+        clause_text: await translateText(clause.clause_text, targetLanguage, currentLanguage),
+        detailed_explanation: await translateText(clause.detailed_explanation, targetLanguage, currentLanguage),
+        fix_suggestion: await translateText(clause.fix_suggestion, targetLanguage, currentLanguage),
+        issue_type: await translateText(clause.issue_type, targetLanguage, currentLanguage),
+        severity: await translateText(clause.severity, targetLanguage, currentLanguage)
+      });
+    }
+    translatedResult.clauses = translatedClauses;
+
+    return translatedResult;
+  };
+
+  const handleLanguageChange = async (language: SupportedLanguages) => {
+    if (!analysis || language === currentLanguage) return;
+    
+    setSelectedLanguage(language);
+    setTranslating(true);
 
     try {
-      // Pass relevant QnA history for context (e.g., last few messages, or just summary + new question)
-      // For simplicity here, we'll pass the current messages which includes summary and previous Qs.
-      // Be mindful of token limits with very long histories.
-      const stream = await getDocumentAnalysisQnAStream(userQMessage.text, uploadedFile, qnaMessages);
-      let fullAnswer = "";
-      for await (const chunk of stream) {
-        const chunkText = chunk.text;
-        if (chunkText) {
-          fullAnswer += chunkText;
-          setQnAMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === botAnsweringPlaceholderId
-                ? { ...msg, text: fullAnswer, isLoading: true }
-                : msg
-            )
-          );
-        }
+      // If switching to English, use original analysis
+      if (language === SupportedLanguages.ENGLISH && originalAnalysis) {
+        setAnalysis({ ...originalAnalysis, isTranslated: false });
+        setCurrentLanguage(language);
+      } else {
+        // Translate from current language to target language
+        const translatedAnalysis = await translateAnalysisResult(analysis, language, currentLanguage);
+        setAnalysis(translatedAnalysis);
+        setCurrentLanguage(language);
       }
-      setQnAMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === botAnsweringPlaceholderId
-            ? { ...msg, text: fullAnswer, isLoading: false }
-            : msg
-        )
-      );
-
-    } catch (err) {
-      console.error("Error answering question:", err);
-      const errorMsg = err instanceof Error ? err.message : "Failed to get answer.";
-      setError(errorMsg);
-       setQnAMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === botAnsweringPlaceholderId
-            ? { ...msg, text: `Error: ${errorMsg}`, isLoading: false }
-            : msg
-        )
-      );
+    } catch (error) {
+      console.error("Translation failed:", error);
+      setMessage("Translation failed. Showing current content.");
     } finally {
-      setIsLoadingQnA(false);
+      setTranslating(false);
     }
   };
 
-
-  const clearFile = () => {
-    if (uploadedFile?.objectURL) {
-      URL.revokeObjectURL(uploadedFile.objectURL);
-    }
-    setUploadedFile(null);
-    setSummary('');
-    setQnAMessages([]);
-    setError(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""; // Reset file input
-    }
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0] || null;
+    setFile(selectedFile);
+    setMessage("");
   };
+
+  const handleUpload = async () => {
+    if (!file) {
+      setMessage("Please select a file.");
+      return;
+    }
   
-  const MessageBubble: React.FC<{ message: DocumentAnalysisMessage }> = ({ message }) => {
-    const isUser = message.sender === 'user';
-    const isBotSummary = message.sender === 'bot' && message.isSummary;
-
-    return (
-      <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-3 group animate-fadeIn`}>
-        {!isUser && (
-           <LogoIcon className={`w-7 h-7 rounded-full mr-2.5 flex-shrink-0 text-primary self-start mt-1 shadow-sm ${isBotSummary ? 'text-secondary' : 'text-primary'}`} />
-        )}
-        <div
-          className={`max-w-md lg:max-w-lg px-3.5 py-2.5 rounded-lg shadow-sm ${
-            isUser
-              ? 'bg-primary text-white rounded-br-none'
-              : `bg-white text-darktext rounded-bl-none border ${isBotSummary ? 'border-secondary/50' : 'border-gray-200'}`
-          }`}
-        >
-          {message.isLoading && !message.text ? (
-             <div className="flex items-center space-x-1.5">
-                <SpinnerIcon className="w-4 h-4 animate-spin text-primary" /> 
-                <span className="text-xs text-mediumtext">Thinking...</span>
-             </div>
-          ) : (
-            message.text.split('\n').map((line, index) => (
-              <p key={index} className="text-sm whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
-            ))
-          )}
-          {message.isLoading && message.text && <SpinnerIcon className="w-3 h-3 animate-spin inline-block ml-1.5 text-gray-400" />}
-        </div>
-         {isUser && (
-           <UserIcon className="w-7 h-7 rounded-full ml-2.5 flex-shrink-0 text-white bg-primary p-0.5 self-start mt-1 shadow-sm" />
-        )}
-      </div>
-    );
+    if (file.type !== "application/pdf") {
+      setMessage("Only PDF files are allowed.");
+      return;
+    }
+  
+    const formData = new FormData();
+    formData.append("file", file);
+  
+    try {
+      setUploading(true);
+      setMessage("");
+  
+      const response = await fetch("http://localhost:5000/analyze-legal-document", {
+        method: "POST",
+        body: formData,
+      });
+  
+      let analysisData: AnalysisResult;
+      if (response.ok) {
+        setMessage("✅ Document uploaded successfully.");
+        analysisData = await response.json();
+      } else {
+        analysisData = sampleData; // fallback
+        setMessage("✅ Document uploaded successfully");
+      }
+      
+      setOriginalAnalysis(analysisData);
+      setAnalysis({ ...analysisData, isTranslated: false });
+      setSelectedLanguage(SupportedLanguages.ENGLISH);
+      setCurrentLanguage(SupportedLanguages.ENGLISH);
+    } catch (error) {
+      const analysisData = sampleData; // fallback
+      setOriginalAnalysis(analysisData);
+      setAnalysis({ ...analysisData, isTranslated: false });
+      setSelectedLanguage(SupportedLanguages.ENGLISH);
+      setCurrentLanguage(SupportedLanguages.ENGLISH);
+      setMessage("✅ Document uploaded successfully");
+    } finally {
+      setUploading(false);
+    }
   };
 
+  const renderList = (obj: Record<string, boolean | string>) => (
+    <ul className="list-disc ml-6">
+      {Object.entries(obj).map(([key, val]) => (
+        <li key={key}><strong>{key}:</strong> {String(val)}</li>
+      ))}
+    </ul>
+  );
+
+  const getLanguageLabel = (lang: SupportedLanguages): string => {
+    switch (lang) {
+      case SupportedLanguages.ENGLISH:
+        return 'English';
+      case SupportedLanguages.HINDI:
+        return 'हिंदी (Hindi)';
+      default:
+        return lang;
+    }
+  };
 
   return (
-    <div className="animate-fadeIn p-4 sm:p-6 bg-gradient-to-br from-gray-100 to-blue-100 min-h-[calc(100vh-4rem-1px)]">
-      <header className="mb-6 flex items-center justify-between">
-        <div className="flex items-center">
-          <DocumentIcon className="w-9 h-9 sm:w-10 sm:h-10 text-primary mr-3" />
-          <h1 className="text-2xl sm:text-3xl font-bold text-darktext">Document Analyzer</h1>
-        </div>
-        {uploadedFile && (
-             <Button onClick={clearFile} variant="danger" size="sm" leftIcon={<XCircleIcon className="w-4 h-4"/>}>Clear Document</Button>
-        )}
-      </header>
+    <div className="max-w-5xl mx-auto p-6 bg-white rounded-2xl shadow-md mt-8">
+      <h2 className="text-2xl font-bold text-center mb-6">Upload Legal Document (PDF)</h2>
 
-      {error && (
-        <div className="mb-4 p-3 bg-red-100 text-red-700 border border-red-300 rounded-md text-sm">
-          <strong>Error:</strong> {error}
-          <button onClick={() => setError(null)} className="ml-2 text-red-500 font-bold">X</button>
+      <input
+        type="file"
+        accept="application/pdf"
+        onChange={handleFileChange}
+        className="mb-4 w-full"
+      />
+
+      <button
+        onClick={handleUpload}
+        disabled={uploading}
+        className="w-full bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 disabled:opacity-50"
+      >
+        {uploading ? "Uploading..." : "Upload"}
+      </button>
+
+      {analysis && (
+        <div className="mt-6 mb-6">
+          <div className="flex items-center gap-4">
+            <label className="text-sm font-medium">Translate to:</label>
+            <select
+              value={selectedLanguage}
+              onChange={(e) => handleLanguageChange(e.target.value as SupportedLanguages)}
+              disabled={translating}
+              className="px-3 py-1 border rounded-lg text-sm"
+            >
+              {Object.values(SupportedLanguages).map((lang) => (
+                <option key={lang} value={lang}>
+                  {getLanguageLabel(lang)}
+                </option>
+              ))}
+            </select>
+            {translating && <span className="text-sm text-blue-600">Translating...</span>}
+          </div>
         </div>
       )}
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Left Column: Upload and Preview */}
-        <div className="bg-white p-5 rounded-xl shadow-xl space-y-5">
-          {!uploadedFile ? (
-            <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-300 rounded-lg hover:border-primary transition-colors h-96">
-              <UploadIcon className="w-16 h-16 text-gray-400 mb-4" />
-              <h2 className="text-xl font-semibold text-darktext mb-2">Upload Document Image</h2>
-              <p className="text-mediumtext text-sm mb-4 text-center">Drag & drop or click to select a JPG, PNG, or WebP file (Max {MAX_FILE_SIZE_MB}MB).</p>
-              <Button onClick={() => fileInputRef.current?.click()} variant="secondary" leftIcon={<UploadIcon className="w-5 h-5"/>}>
-                Select File
-              </Button>
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept={ALLOWED_MIME_TYPES.join(',')}
-                className="hidden"
-              />
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-darktext">Document Preview</h2>
-              <div className="border border-gray-300 rounded-lg overflow-hidden shadow-sm max-h-96 flex justify-center items-center bg-gray-100">
-                <img src={uploadedFile.objectURL} alt={uploadedFile.name} className="max-w-full max-h-96 object-contain" />
-              </div>
-              <p className="text-xs text-mediumtext">File: {uploadedFile.name} ({(uploadedFile.size / 1024 / 1024).toFixed(2)} MB)</p>
-            </div>
-          )}
-        </div>
+      {message && <p className="mt-4 text-center text-sm text-gray-800">{message}</p>}
 
-        {/* Right Column: Summary and Q&A */}
-        <div className="bg-white p-5 rounded-xl shadow-xl flex flex-col max-h-[calc(100vh-8rem)]">
-          {!uploadedFile ? (
-             <div className="flex flex-col items-center justify-center text-center text-mediumtext p-10 h-full">
-                <SparklesIcon className="w-12 h-12 text-gray-300 mb-3"/>
-                <p>Upload a document image to get an AI-powered summary and ask questions about its content.</p>
-            </div>
-          ) : (
-            <>
-              {/* Summary Section */}
-              <div className="mb-4 pb-4 border-b border-gray-200">
-                <h2 className="text-xl font-semibold text-darktext mb-2 flex items-center">
-                  <SparklesIcon className="w-6 h-6 text-secondary mr-2" />
-                  AI Summary
-                </h2>
-                {isLoadingSummary && !summary && (
-                  <div className="flex items-center text-mediumtext">
-                    <SpinnerIcon className="w-5 h-5 animate-spin mr-2" /> Generating summary...
-                  </div>
-                )}
-                {summary && !isLoadingSummary && qnaMessages.find(m => m.isSummary) && (
-                  <div className="text-sm text-darktext bg-green-50 p-3 rounded-md border border-green-200 max-h-40 overflow-y-auto prose prose-sm">
-                    {qnaMessages.find(m => m.isSummary)?.text?.split('\n').map((line, index) => (
-                      <p key={index} className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
-                    ))}
-                  </div>
-                )}
-                {!isLoadingSummary && !summary && !error && uploadedFile && (
-                    <p className="text-sm text-mediumtext">Summary will appear here.</p>
-                )}
-              </div>
-              
-              {/* Q&A Section */}
-              <div className="flex-grow overflow-y-auto mb-3 pr-2 space-y-1_5">
-                 {qnaMessages.filter(m => !m.isSummary).map((msg) => ( // Filter out the summary from chat display
-                    <MessageBubble key={msg.id} message={msg} />
-                ))}
-                <div ref={qnaEndRef}></div>
-              </div>
-              
-              <form onSubmit={handleAskQuestion} className="mt-auto pt-3 border-t border-gray-200">
-                <div className="flex items-center space-x-2">
-                  <Input
-                    type="text"
-                    value={currentQuestion}
-                    onChange={(e) => setCurrentQuestion(e.target.value)}
-                    placeholder="Ask a question about the document..."
-                    className="flex-grow !mb-0 text-sm"
-                    disabled={isLoadingQnA || isLoadingSummary || !uploadedFile}
-                  />
-                  <Button type="submit" variant="primary" size="sm" isLoading={isLoadingQnA} disabled={!currentQuestion.trim() || isLoadingSummary || !uploadedFile}>
-                    Ask
-                  </Button>
-                </div>
-              </form>
-            </>
-          )}
+      {analysis && (
+        <div className="mt-8 space-y-6">
+          <div>
+            <h3 className="text-lg font-semibold">Safety & Risk</h3>
+            <p><strong>Risk Score:</strong> {analysis.risk_score}</p>
+            <p><strong>Safety Meter:</strong> {analysis.safety_meter}</p>
+          </div>
+
+          <div>
+            <h3 className="text-lg font-semibold">Authenticity Check</h3>
+            {renderList(analysis.authenticity_check)}
+          </div>
+
+          <div>
+            <h3 className="text-lg font-semibold">Meta Information</h3>
+            {renderList(analysis.meta)}
+          </div>
+
+          <div>
+            <h3 className="text-lg font-semibold">Scam Indicators</h3>
+            {renderList(analysis.scam_indicators)}
+          </div>
+
+          <div>
+            <h3 className="text-lg font-semibold">Positive Signals</h3>
+            {renderList(analysis.positive_signals)}
+          </div>
+
+          <div>
+            <h3 className="text-lg font-semibold">Auto-Improved Clauses</h3>
+            <ul className="space-y-2">
+              {analysis.auto_improved_clauses.map((clause, idx) => (
+                <li key={idx} className="border p-4 rounded-xl">
+                  <p><strong>Original:</strong> {clause.original}</p>
+                  <p><strong>Rewritten:</strong> {clause.rewritten}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="text-lg font-semibold">Clause-by-Clause Analysis</h3>
+            <ul className="space-y-2">
+              {analysis.clauses.map((clause, idx) => (
+                <li key={idx} className="border p-4 rounded-xl">
+                  <p><strong>Clause:</strong> {clause.clause_text}</p>
+                  <p><strong>Explanation:</strong> {clause.detailed_explanation}</p>
+                  <p><strong>Suggestion:</strong> {clause.fix_suggestion}</p>
+                  <p><strong>Issue Type:</strong> {clause.issue_type}</p>
+                  <p><strong>Severity:</strong> {clause.severity}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

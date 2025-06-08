@@ -1,375 +1,235 @@
-import React, { useState, useEffect, useRef, FormEvent } from 'react';
-import { ChatMessage } from '../types';
-import { getGeminiStreamedResponse, transcribeAudioWithGemini } from '../services/geminiService.ts'; 
-import { detectTextLanguage } from '../services/bhashiniService'; // Keep for input language detection
-// Removed Bhashini translate, textToSpeech, speechToTextBhashini
-import Button from './common/Button';
-import Input from './common/Input';
-import { UserIcon } from './icons/UserIcon';
-import { LogoIcon } from './icons/LogoIcon';
-import { SpinnerIcon } from './icons/SpinnerIcon';
-import { MicrophoneIcon } from './icons/MicrophoneIcon';
-import { StopCircleIcon } from './icons/StopCircleIcon';
-import { SpeakerWaveIcon } from './icons/SpeakerWaveIcon';
-import { useLanguage } from '../context/LanguageContext';
-import { textToSpeech as bhashiniTextToSpeech } from '../services/bhashiniService'; // Keep bhashini TTS for now, or replace if Gemini TTS also required
+import React, { useState, useRef, useEffect } from 'react';
+import axios from 'axios';
+
+interface Message {
+  sender: 'user' | 'bot';
+  text: string;
+}
+
+const languageOptions = [
+  { code: 'en', label: 'English' },
+  { code: 'hi', label: 'Hindi' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'fr', label: 'French' },
+  // add more as needed
+];
 
 const ChatbotInterface: React.FC = () => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [currentMessage, setCurrentMessage] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { currentLanguage: appLanguage, translate } = useLanguage(); 
+  const [question, setQuestion] = useState('');
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [sessionId] = useState(() => 'session_' + Math.random().toString(36).substring(2, 15));
+  const [inputLan, setInputLan] = useState('en');
+  const [outputLan, setOutputLan] = useState('en');
+  const bottomRef = useRef<HTMLDivElement>(null);
 
-  const [isRecording, setIsRecording] = useState<boolean>(false);
-  const [isProcessingAudio, setIsProcessingAudio] = useState<boolean>(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!question.trim()) return;
   
-  const [userInputLanguage, setUserInputLanguage] = useState<string>('en'); 
-  const [isBotSpeaking, setIsBotSpeaking] = useState<string | null>(null);
+    setLoading(true);
+  
+    try {
+      // 1. Translate user question to English if needed
+      let questionInEnglish = question;
+      if (inputLan !== 'en') {
+        const translationRes = await axios.post('/api/bhashini/translate', {
+          text: question,
+          inputLan,
+          outputLan: 'en',
+        });
+        // Extract from Bhashini API response structure
+        questionInEnglish = translationRes.data.pipelineResponse?.[0]?.output?.[0]?.target || 
+                           translationRes.data.translated_text || 
+                           translationRes.data.translation || 
+                           question;
+      }
+  
+      // 2. Send translated question to chatbot backend
+      const chatRes = await axios.post('/api/chat', {
+        question: questionInEnglish,
+        session_id: sessionId,
+      });
+  
+      let botResponseEnglish = chatRes.data.reply;
+  
+      // 3. Translate bot response to outputLan if needed
+      let finalBotResponse = botResponseEnglish;
+      if (outputLan !== 'en') {
+        const backTranslationRes = await axios.post('/api/bhashini/translate', {
+          text: botResponseEnglish,
+          inputLan: 'en',  // Bot response is in English
+          outputLan,       // Translate to user's desired output language
+        });
+        // Extract from Bhashini API response structure
+        finalBotResponse = backTranslationRes.data.pipelineResponse?.[0]?.output?.[0]?.target || 
+                          backTranslationRes.data.translated_text || 
+                          backTranslationRes.data.translation || 
+                          botResponseEnglish;
+      }
+  
+      // 4. Update messages state
+      setMessages((prev) => [
+        ...prev,
+        { sender: 'user', text: question },
+        { sender: 'bot', text: finalBotResponse },
+      ]);
+      setQuestion('');
+    } catch (err) {
+      console.error(err);
+      setMessages((prev) => [
+        ...prev,
+        { sender: 'user', text: question },
+        { sender: 'bot', text: 'Something went wrong. Please try again.' },
+      ]);
+    }
+  
+    setLoading(false);
+  };
+
+  // Handle translation of last bot message
+  const handleTranslate = async () => {
+    // Find last bot message index
+    const lastBotIndex = [...messages].reverse().findIndex((m) => m.sender === 'bot');
+    if (lastBotIndex === -1) {
+      alert('No bot message to translate.');
+      return;
+    }
+    // Since we reversed, compute actual index
+    const index = messages.length - 1 - lastBotIndex;
+    const originalText = messages[index].text;
+
+    setLoading(true);
+    try {
+      // For manual translation, we need to determine the current language of the bot message
+      // and translate it to the desired output language
+      const res = await axios.post('/api/bhashini/translate', {
+        text: originalText,
+        inputLan: 'en', // Assuming bot message is currently in English or previous output language
+        outputLan,      // User's desired output language
+      }, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      // Extract from Bhashini API response structure
+      const translatedText = res.data.pipelineResponse?.[0]?.output?.[0]?.target || 
+                             res.data.translated_text || 
+                             res.data.translation || 
+                             res.data.reply || 
+                             '';
+
+      // Update the bot message with translated text
+      setMessages((prev) => {
+        const newMessages = [...prev];
+        newMessages[index] = { ...newMessages[index], text: translatedText };
+        return newMessages;
+      });
+    } catch (err) {
+      console.error(err);
+      alert('Translation failed. Please try again.');
+    }
+    setLoading(false);
+  };
 
   useEffect(() => {
-    const setInitialMsg = async () => {
-        const initialText = await translate('Hello! I am Nyay Sahayak, your AI legal assistant for Indian law. How can I help you today?');
-        setMessages([
-          {
-            id: 'initial-bot-message',
-            text: initialText,
-            sender: 'bot',
-            timestamp: new Date(),
-            language: appLanguage, 
-          },
-        ]);
-    };
-    setInitialMsg();
-  }, [appLanguage, translate]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const convertBlobToBase64 = (blob: Blob): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = (reader.result as string).split(',')[1];
-        resolve(base64String);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  };
-
-  const startRecording = async () => {
-    if (isRecording || isProcessingAudio) return;
-    setError(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Try to get WAV if possible, otherwise browser default (often webm)
-      const options = { mimeType: 'audio/wav' }; 
-      try {
-        mediaRecorderRef.current = new MediaRecorder(stream, options);
-      } catch (e) {
-        console.warn("WAV mimeType not supported for MediaRecorder, using browser default.", e);
-        mediaRecorderRef.current = new MediaRecorder(stream); // Fallback to browser default
-      }
-      
-      audioChunksRef.current = [];
-
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        audioChunksRef.current.push(event.data);
-      };
-
-      mediaRecorderRef.current.onstop = async () => {
-        setIsProcessingAudio(true);
-        const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorderRef.current?.mimeType || 'audio/webm' });
-        const sttLanguage = userInputLanguage || appLanguage || 'en';
-        
-        try {
-          const audioBase64 = await convertBlobToBase64(audioBlob);
-          const transcribedText = await transcribeAudioWithGemini(audioBase64, audioBlob.type, sttLanguage);
-
-          if (transcribedText) {
-            setCurrentMessage(transcribedText);
-            const detectedLang = await detectTextLanguage(transcribedText); // Bhashini detect for input context
-            setUserInputLanguage(detectedLang || sttLanguage);
-            if (transcribedText.trim()) {
-                handleSendMessage(undefined, transcribedText, detectedLang || sttLanguage);
-            }
-          } else {
-            setError("Gemini STT: No text transcribed or STT failed.");
-          }
-        } catch (sttError) {
-          console.error("Gemini STT error:", sttError);
-          setError(sttError instanceof Error ? `STT Error: ${sttError.message}` : "STT failed. Please try again.");
-        } finally {
-          setIsProcessingAudio(false);
-          stream.getTracks().forEach(track => track.stop());
-        }
-      };
-
-      mediaRecorderRef.current.start();
-      setIsRecording(true);
-    } catch (err) {
-      console.error("Error starting recording:", err);
-      setError("Microphone access denied or error starting recording. Please check permissions.");
-      setIsRecording(false);
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false); 
-    }
-  };
-  
-  const toggleRecording = () => {
-    if (isRecording) stopRecording();
-    else startRecording();
-  };
-
-  const handleSendMessage = async (e?: FormEvent, messageTextOverride?: string, detectedLangOverride?: string) => {
-    if (e) e.preventDefault();
-    
-    const messageToSend = messageTextOverride || currentMessage;
-    if (!messageToSend.trim() || isLoading || isProcessingAudio) return;
-
-    if (isRecording) stopRecording();
-
-    let finalUserInputLanguage = detectedLangOverride || userInputLanguage || 'en';
-    if (!messageTextOverride && messageToSend.trim()) { 
-        try {
-            const detectedTypedLang = await detectTextLanguage(messageToSend); // Bhashini detect
-            setUserInputLanguage(detectedTypedLang || 'en'); // Ensure it's never undefined
-            finalUserInputLanguage = detectedTypedLang || 'en';
-        } catch (typedLangError){ finalUserInputLanguage = userInputLanguage || 'en'; }
-    }
-
-
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      text: messageToSend,
-      sender: 'user',
-      timestamp: new Date(),
-      language: finalUserInputLanguage,
-    };
-
-    const historyForAPI = [...messages, userMessage];
-    setMessages(prevMessages => [...prevMessages, userMessage]);
-    setCurrentMessage('');
-    setIsLoading(true);
-    setError(null);
-
-    const botMessagePlaceholderId = `bot-${Date.now()}`;
-    setMessages((prevMessages) => [
-      ...prevMessages,
-      {
-        id: botMessagePlaceholderId,
-        text: '',
-        sender: 'bot',
-        timestamp: new Date(),
-        isLoading: true,
-        language: appLanguage, 
-      },
-    ]);
-
-    try {
-      const stream = await getGeminiStreamedResponse(historyForAPI, messageToSend);
-      let rawBotResponse = '';
-      
-      for await (const chunk of stream) {
-        const chunkText = chunk.text;
-        if (chunkText) {
-          rawBotResponse += chunkText;
-          // Translate chunk by chunk if possible, or translate whole response at the end.
-          // For now, accumulating then translating.
-          const translatedChunkPreview = await translate(rawBotResponse); // Translate accumulated
-          setMessages((prevMessages) =>
-            prevMessages.map((msg) =>
-              msg.id === botMessagePlaceholderId
-                ? { ...msg, text: translatedChunkPreview, isLoading: true } 
-                : msg
-            )
-          );
-        }
-      }
-      
-      // Final translation of the complete response
-      const finalBotText = await translate(rawBotResponse);
-
-      setMessages((prevMessages) =>
-        prevMessages.map((msg) =>
-          msg.id === botMessagePlaceholderId
-            ? { ...msg, text: finalBotText, isLoading: false, language: appLanguage } // Bot response is in appLanguage
-            : msg
-        )
-      );
-
-    } catch (err) {
-      console.error('Error in handleSendMessage (Gemini Chat):', err);
-      const errorMessageText = err instanceof Error ? err.message : 'An unknown error occurred with the AI.';
-      setError(`AI interaction error: ${errorMessageText}`);
-      const translatedError = await translate(`Sorry, error: ${errorMessageText}`);
-      setMessages((prevMessages) =>
-        prevMessages.map((msg) =>
-          msg.id === botMessagePlaceholderId
-            ? { ...msg, text: translatedError, isLoading: false, language: appLanguage, sender: 'bot' }
-            : msg
-        )
-      );
-    } finally {
-      setIsLoading(false);
-      setMessages((prevMessages) =>
-        prevMessages.map((msg) =>
-          msg.id === botMessagePlaceholderId && msg.isLoading
-            ? { ...msg, isLoading: false }
-            : msg
-        )
-      );
-    }
-  };
-
-  const playBotTTS = async (message: ChatMessage) => {
-    if (!message.text || isBotSpeaking === message.id || isProcessingAudio) return;
-    setIsBotSpeaking(message.id);
-    setError(null);
-    try {
-      // Using Bhashini TTS for now. If Gemini TTS is required, this needs changing.
-      const audioBase64 = await bhashiniTextToSpeech(message.text, message.language || appLanguage);
-      if (audioBase64) {
-        const audio = new Audio(`data:audio/wav;base64,${audioBase64}`);
-        audio.play();
-        audio.onended = () => setIsBotSpeaking(null);
-        audio.onerror = () => {
-            setError("Error playing audio.");
-            setIsBotSpeaking(null);
-        }
-      } else {
-        setError("Could not generate audio for this message.");
-        setIsBotSpeaking(null);
-      }
-    } catch (ttsError) {
-      console.error("TTS Error:", ttsError);
-      setError(ttsError instanceof Error ? ttsError.message : "Failed to play audio.");
-      setIsBotSpeaking(null);
-    }
-  };
-  
-  const MessageBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
-    const isUser = message.sender === 'user';
-    return (
-      <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4 group animate-slideInLeft hover-scale`} 
-           style={{ animationDelay: '0.1s' }}>
-        {!isUser && (
-           <LogoIcon className="w-8 h-8 rounded-full mr-3 flex-shrink-0 text-primary self-start mt-1 shadow-sm" />
-        )}
-        <div
-          className={`max-w-xl lg:max-w-2xl px-4 py-3 rounded-xl shadow-md ${
-            isUser
-              ? 'bg-primary text-white rounded-br-none'
-              : 'bg-white text-darktext rounded-bl-none border border-gray-200'
-          }`}
-        >
-          {message.isLoading && !message.text ? (
-             <div className="flex items-center space-x-2">
-                <SpinnerIcon className="w-5 h-5 animate-spin text-primary" /> 
-                <span className="text-sm text-mediumtext">Nyay Sahayak is thinking...</span>
-             </div>
-          ) : (
-            message.text.split('\n').map((line, index) => (
-              <p key={index} className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
-            ))
-          )}
-          {message.isLoading && message.text && <SpinnerIcon className="w-4 h-4 animate-spin inline-block ml-2 text-gray-400" />}
-        </div>
-        {!isUser && message.text && !message.isLoading && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => playBotTTS(message)}
-            className="ml-2 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1 self-center"
-            aria-label="Play message audio"
-            isLoading={isBotSpeaking === message.id}
-            disabled={isBotSpeaking !== null && isBotSpeaking !== message.id}
-          >
-            <SpeakerWaveIcon className="w-5 h-5 text-primary" />
-          </Button>
-        )}
-         {isUser && (
-           <UserIcon className="w-8 h-8 rounded-full ml-3 flex-shrink-0 text-white bg-primary p-1 self-start mt-1 shadow-sm" />
-        )}
-      </div>
-    );
-  };
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem-1px)] max-h-[calc(100vh-4rem-1px)] bg-gradient-to-br from-gray-50 to-blue-50 rounded-lg shadow-xl overflow-hidden animate-fadeIn">
-      <header className="bg-primary text-white p-4 flex items-center justify-between shadow-md animate-slideInDown">
-        <h2 className="text-xl font-semibold">AI Legal Assistant</h2>
-        <span className="text-xs px-2 py-1 bg-white/20 rounded-full">{appLanguage.toUpperCase()} Mode</span>
-      </header>
-
-      {error && (
-         <div className="p-3 bg-red-100 text-red-700 border-b border-red-200 text-sm text-center">
-            <strong>Error:</strong> {error}
-            <button onClick={() => setError(null)} className="ml-2 text-red-500 font-bold">X</button>
-         </div>
-      )}
-
-      <div className="flex-grow p-6 overflow-y-auto space-y-4 bg-transparent animate-fadeIn">
-        {messages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} />
-        ))}
-        <div ref={messagesEndRef} />
+    <div style={{ maxWidth: 600, margin: '2rem auto', padding: '1rem', border: '1px solid #ccc', borderRadius: 8, display: 'flex', flexDirection: 'column', height: '80vh' }}>
+      <h2>Legal Awareness Chatbot</h2>
+      <div style={{ marginBottom: '1rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+        <div>
+          <label htmlFor="inputLan">Input Language: </label>
+          <select
+            id="inputLan"
+            value={inputLan}
+            onChange={(e) => setInputLan(e.target.value)}
+            disabled={loading}
+          >
+            {languageOptions.map((lan) => (
+              <option key={lan.code} value={lan.code}>{lan.label}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="outputLan">Output Language: </label>
+          <select
+            id="outputLan"
+            value={outputLan}
+            onChange={(e) => setOutputLan(e.target.value)}
+            disabled={loading}
+          >
+            {languageOptions.map((lan) => (
+              <option key={lan.code} value={lan.code}>{lan.label}</option>
+            ))}
+          </select>
+        </div>
+        <button
+          onClick={handleTranslate}
+          disabled={loading || messages.filter(m => m.sender === 'bot').length === 0}
+          style={{ padding: '0.3rem 1rem' }}
+          title="Translate last bot response"
+        >
+          Translate
+        </button>
       </div>
 
-      <form onSubmit={handleSendMessage} className="border-t border-gray-200 p-4 bg-white/80 backdrop-blur-sm animate-slideInUp">
-        <div className="flex items-center space-x-2 sm:space-x-3">
-          <Input
-            type="text"
-            value={currentMessage}
-            onChange={async (e) => {
-              setCurrentMessage(e.target.value);
-              if (e.target.value.length > 5 && e.target.value.includes(' ')) { 
-                  try {
-                      const detectedLang = await detectTextLanguage(e.target.value); // Bhashini detect
-                      setUserInputLanguage(detectedLang || appLanguage);
-                  } catch (langError) { setUserInputLanguage(appLanguage); }
-              } else if (!e.target.value.trim()) {
-                  setUserInputLanguage(appLanguage); 
-              }
-            }}
-            placeholder={isRecording ? "Recording..." : isProcessingAudio ? "Processing audio..." : "Ask about Indian law..."}
-            className="flex-grow !mb-0"
-            disabled={isLoading || isRecording || isProcessingAudio}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                handleSendMessage();
-                e.preventDefault(); 
-              }
-            }}
-          />
-          <Button
-            type="button"
-            variant={isRecording ? "danger" : "ghost"}
-            onClick={toggleRecording}
-            disabled={isLoading || isProcessingAudio}
-            className={`p-2.5 ${isRecording ? 'bg-red-500 hover:bg-red-600' : 'text-primary hover:bg-blue-100'} ${isProcessingAudio ? 'cursor-wait' : ''}`}
-            aria-label={isRecording ? "Stop recording" : "Start recording"}
-          >
-            {isProcessingAudio ? <SpinnerIcon className="w-5 h-5 animate-spin" /> : (isRecording ? <StopCircleIcon className="w-5 h-5" /> : <MicrophoneIcon className="w-5 h-5" />) }
-          </Button>
-          <Button type="submit" variant="primary" isLoading={isLoading} disabled={!currentMessage.trim() || isRecording || isProcessingAudio}>
-            Send
-          </Button>
-        </div>
-        <p className="text-xs text-gray-500 mt-1 pl-1">
-            Input Language: {(userInputLanguage || appLanguage).toUpperCase()}
-            {isProcessingAudio ? " (Processing...)" : isRecording ? " (Recording...)" : ""}
-        </p>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', border: '1px solid #ddd', borderRadius: 8, backgroundColor: '#fafafa' }}>
+        {messages.length === 0 && <p style={{ color: '#777' }}>Ask your legal question below to start the conversation.</p>}
+
+        {messages.map((msg, idx) => (
+          <div key={idx} style={{ marginBottom: '1rem', textAlign: msg.sender === 'user' ? 'right' : 'left' }}>
+            <div
+              style={{
+                display: 'inline-block',
+                padding: '0.5rem 1rem',
+                borderRadius: 20,
+                backgroundColor: msg.sender === 'user' ? '#007bff' : '#e5e5ea',
+                color: msg.sender === 'user' ? 'white' : 'black',
+                maxWidth: '75%',
+                whiteSpace: 'pre-wrap',
+              }}
+            >
+              {msg.text}
+            </div>
+          </div>
+        ))}
+
+        {loading && (
+          <div style={{ marginBottom: '1rem', textAlign: 'left' }}>
+            <div
+              style={{
+                display: 'inline-block',
+                padding: '0.5rem 1rem',
+                borderRadius: 20,
+                backgroundColor: '#e5e5ea',
+                color: 'black',
+                maxWidth: '75%',
+                fontStyle: 'italic',
+                opacity: 0.7,
+              }}
+            >
+              Bot is thinking...
+            </div>
+          </div>
+        )}
+
+        <div ref={bottomRef} />
+      </div>
+
+      <form onSubmit={handleSubmit} style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
+        <textarea
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          rows={2}
+          style={{ flex: 1, padding: '0.5rem', resize: 'none' }}
+          placeholder="Type your question here..."
+          disabled={loading}
+        />
+        <button type="submit" style={{ padding: '0.5rem 1rem' }} disabled={loading || !question.trim()}>
+          Send
+        </button>
       </form>
     </div>
   );
