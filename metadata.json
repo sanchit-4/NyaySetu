@@ -1,0 +1,9 @@
+
+{
+  "name": "Nyay Sahayak - Indian Legal Navigator - Gemini and Bhashini",
+  "description": "An educational web application to help users learn about the Indian legal and judiciary system, featuring an AI chatbot (Gemini), document analysis (Gemini Vision), and multilingual support via Bhashini. Designed to empower citizens with legal knowledge.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "prompt": ""
+}
