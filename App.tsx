@@ -7,6 +7,7 @@ import LandingPage from './components/LandingPage';
 import AuthPage from './components/AuthPage';
 import DashboardPage from './components/DashboardPage';
 import { LanguageProvider } from './context/LanguageContext'; // Import LanguageProvider
+import Flashcards from './components/Flashcards';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -78,6 +79,7 @@ const AppRoutes: React.FC<AppRoutesProps> = ({ currentUser, onAuthSuccess, onLog
         path={`${PATHS.DASHBOARD_ROOT}/*`} 
         element={currentUser ? <DashboardPage user={currentUser} onLogout={onLogout} /> : <Navigate to={PATHS.LOGIN} replace />} 
       />
+     <Route path="/flashcards" element={<Flashcards />} />
        <Route path="*" element={<Navigate to={currentUser ? PATHS.DASHBOARD_ROOT : PATHS.LANDING} replace />} />
     </Routes>
   );

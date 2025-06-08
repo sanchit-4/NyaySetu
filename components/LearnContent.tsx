@@ -1,28 +1,32 @@
-
 import React from 'react';
-import { learningModules } from '../data/learnData'; // Adjusted path
+import { learningModules } from '../data/learnData';
 import LearningModuleCard from './learn/LearningModuleCard';
 import FloatingFlashcard from './FloatingFlashcard';
-import { User } from '../types'; // Import User type
-import { useLanguage } from '../context/LanguageContext'; // For potential translation of header
+import { User } from '../types';
+import { useLanguage } from '../context/LanguageContext';
 
 interface LearnContentProps {
-  user: User; // User prop
+  user: User;
 }
 
 const LearnContent: React.FC<LearnContentProps> = ({ user }) => {
   const { translate } = useLanguage();
   const [headerTitle, setHeaderTitle] = React.useState('Welcome to Your Legal Learning Hub');
-  const [headerSubtitle, setHeaderSubtitle] = React.useState('Explore diverse aspects of the Indian legal system. Select a module below to begin your journey of knowledge and empowerment.');
+  const [headerSubtitle, setHeaderSubtitle] = React.useState(
+    'Explore diverse aspects of the Indian legal system. Select a module below to begin your journey of knowledge and empowerment.'
+  );
 
   React.useEffect(() => {
     const doTranslate = async () => {
-        setHeaderTitle(await translate('Welcome to Your Legal Learning Hub'));
-        setHeaderSubtitle(await translate('Explore diverse aspects of the Indian legal system. Select a module below to begin your journey of knowledge and empowerment.'));
+      setHeaderTitle(await translate('Welcome to Your Legal Learning Hub'));
+      setHeaderSubtitle(
+        await translate(
+          'Explore diverse aspects of the Indian legal system. Select a module below to begin your journey of knowledge and empowerment.'
+        )
+      );
     };
     doTranslate();
   }, [translate]);
-
 
   const flashcardData = [
     { id: 'fc1', text: 'FIR', top: '10%', left: '5%', delay: '0s', duration: '15s' },
@@ -38,15 +42,15 @@ const LearnContent: React.FC<LearnContentProps> = ({ user }) => {
     <div className="animate-fadeIn relative min-h-full">
       <div className="absolute inset-0 overflow-hidden z-0">
         {flashcardData.map(fc => (
-          <FloatingFlashcard 
-            key={fc.id} 
-            text={fc.text} 
-            style={{ 
-              top: fc.top, 
-              left: fc.left, 
+          <FloatingFlashcard
+            key={fc.id}
+            text={fc.text}
+            style={{
+              top: fc.top,
+              left: fc.left,
               animationDelay: fc.delay,
               animationDuration: fc.duration,
-            }} 
+            }}
           />
         ))}
       </div>
@@ -63,8 +67,8 @@ const LearnContent: React.FC<LearnContentProps> = ({ user }) => {
 
         {learningModules.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 sm:gap-8">
-            {learningModules.map((module) => (
-              <LearningModuleCard key={module.id} module={module} user={user} /> // Pass user to card
+            {learningModules.map(module => (
+              <LearningModuleCard key={module.id} module={module} user={user} />
             ))}
           </div>
         ) : (
@@ -73,6 +77,18 @@ const LearnContent: React.FC<LearnContentProps> = ({ user }) => {
             <p className="text-mediumtext mt-2">Please check back soon as we continuously update our content!</p>
           </div>
         )}
+
+        {/* Calendly Scheduling Button */}
+        <div className="mt-12 flex justify-center">
+          <a
+            href="https://calendly.com/sanchitgoyal2803/30min"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-full shadow-lg transition-all"
+          >
+            📅 Still have doubts? Consult a lawyer
+          </a>
+        </div>
 
         <div className="mt-16 p-8 bg-gradient-to-r from-slate-800 to-slate-900 text-white rounded-lg shadow-2xl text-center">
           <h2 className="text-3xl font-semibold mb-4">Stay Curious! More Content Is On The Way!</h2>

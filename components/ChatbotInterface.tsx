@@ -9,10 +9,14 @@ interface Message {
 const languageOptions = [
   { code: 'en', label: 'English' },
   { code: 'hi', label: 'Hindi' },
-  { code: 'es', label: 'Spanish' },
-  { code: 'fr', label: 'French' },
-  // add more as needed
+  { code: 'bn', label: 'Bengali' },
+  { code: 'te', label: 'Telugu' },
+  { code: 'ta', label: 'Tamil' },
+  { code: 'gu', label: 'Gujarati' },
+  { code: 'mr', label: 'Marathi' },
+  { code: 'kn', label: 'Kannada' }
 ];
+
 
 const ChatbotInterface: React.FC = () => {
   const [question, setQuestion] = useState('');

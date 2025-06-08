@@ -1,13 +1,17 @@
 import React, { useState, ChangeEvent } from "react";
-import sampleData from './sample.json';
-
+import sampleData from "./sample.json"
 // Mock sample data for demonstration
 
 enum SupportedLanguages {
   ENGLISH = 'en',
-  HINDI = 'hi'
+  HINDI = 'hi',
+  BENGALI = 'bn',
+  TELUGU = 'te',
+  TAMIL = 'ta',
+  GUJARATI = 'gu',
+  MARATHI = 'mr',
+  KANNADA = 'kn'
 }
-
 interface Clause {
   clause_text: string;
   detailed_explanation: string;
@@ -46,6 +50,7 @@ const DocumentManagement: React.FC = () => {
   const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguages>(SupportedLanguages.ENGLISH);
   const [currentLanguage, setCurrentLanguage] = useState<SupportedLanguages>(SupportedLanguages.ENGLISH);
   const [translating, setTranslating] = useState<boolean>(false);
+  const [translationProgress, setTranslationProgress] = useState<string>("");
 
   const translateText = async (text: string, outputLan: SupportedLanguages, inputLan: SupportedLanguages = SupportedLanguages.ENGLISH): Promise<string> => {
     try {
@@ -68,11 +73,8 @@ const DocumentManagement: React.FC = () => {
       const data = await response.json();
       
       // Extract translated text from Bhasini API response format
-
-        return data.pipelineResponse?.[0]?.output?.[0]?.target;
+      return data.pipelineResponse?.[0]?.output?.[0]?.target;
       
-    
-      return text; // Return original text if response format is unexpected
     } catch (error) {
       console.error("Translation error:", error);
       return text; // Return original text if translation fails
@@ -90,10 +92,16 @@ const DocumentManagement: React.FC = () => {
       originalLanguage: currentLanguage
     };
 
+    // Update state with current progress
+    setAnalysis({ ...translatedResult });
+
     // Translate safety_meter
+    setTranslationProgress("Translating Safety & Risk section...");
     translatedResult.safety_meter = await translateText(analysisData.safety_meter, targetLanguage, currentLanguage);
+    setAnalysis({ ...translatedResult });
 
     // Translate authenticity_check
+    setTranslationProgress("Translating Authenticity Check...");
     const translatedAuthenticityCheck: Record<string, string | boolean> = {};
     for (const [key, value] of Object.entries(analysisData.authenticity_check)) {
       const translatedKey = await translateText(key.replace(/_/g, ' '), targetLanguage, currentLanguage);
@@ -101,8 +109,10 @@ const DocumentManagement: React.FC = () => {
       translatedAuthenticityCheck[translatedKey] = translatedValue;
     }
     translatedResult.authenticity_check = translatedAuthenticityCheck;
+    setAnalysis({ ...translatedResult });
 
     // Translate meta information
+    setTranslationProgress("Translating Meta Information...");
     const translatedMeta: Record<string, any> = {};
     for (const [key, value] of Object.entries(analysisData.meta)) {
       const translatedKey = await translateText(key.replace(/_/g, ' '), targetLanguage, currentLanguage);
@@ -110,46 +120,62 @@ const DocumentManagement: React.FC = () => {
       translatedMeta[translatedKey] = translatedValue;
     }
     translatedResult.meta = translatedMeta;
+    setAnalysis({ ...translatedResult });
 
     // Translate scam_indicators
+    setTranslationProgress("Translating Scam Indicators...");
     const translatedScamIndicators: Record<string, boolean> = {};
     for (const [key, value] of Object.entries(analysisData.scam_indicators)) {
       const translatedKey = await translateText(key.replace(/_/g, ' '), targetLanguage, currentLanguage);
       translatedScamIndicators[translatedKey] = value;
     }
     translatedResult.scam_indicators = translatedScamIndicators;
+    setAnalysis({ ...translatedResult });
 
     // Translate positive_signals
+    setTranslationProgress("Translating Positive Signals...");
     const translatedPositiveSignals: Record<string, boolean> = {};
     for (const [key, value] of Object.entries(analysisData.positive_signals)) {
       const translatedKey = await translateText(key.replace(/_/g, ' '), targetLanguage, currentLanguage);
       translatedPositiveSignals[translatedKey] = value;
     }
     translatedResult.positive_signals = translatedPositiveSignals;
+    setAnalysis({ ...translatedResult });
 
     // Translate auto_improved_clauses
+    setTranslationProgress("Translating Auto-Improved Clauses...");
     const translatedImprovedClauses: ImprovedClause[] = [];
-    for (const clause of analysisData.auto_improved_clauses) {
-      translatedImprovedClauses.push({
+    for (let i = 0; i < analysisData.auto_improved_clauses.length; i++) {
+      const clause = analysisData.auto_improved_clauses[i];
+      setTranslationProgress(`Translating Auto-Improved Clauses... (${i + 1}/${analysisData.auto_improved_clauses.length})`);
+      const translatedClause = {
         original: await translateText(clause.original, targetLanguage, currentLanguage),
         rewritten: await translateText(clause.rewritten, targetLanguage, currentLanguage)
-      });
+      };
+      translatedImprovedClauses.push(translatedClause);
+      translatedResult.auto_improved_clauses = [...translatedImprovedClauses];
+      setAnalysis({ ...translatedResult });
     }
-    translatedResult.auto_improved_clauses = translatedImprovedClauses;
 
     // Translate clauses
+    setTranslationProgress("Translating Clause-by-Clause Analysis...");
     const translatedClauses: Clause[] = [];
-    for (const clause of analysisData.clauses) {
-      translatedClauses.push({
+    for (let i = 0; i < analysisData.clauses.length; i++) {
+      const clause = analysisData.clauses[i];
+      setTranslationProgress(`Translating Clause-by-Clause Analysis... (${i + 1}/${analysisData.clauses.length})`);
+      const translatedClause = {
         clause_text: await translateText(clause.clause_text, targetLanguage, currentLanguage),
         detailed_explanation: await translateText(clause.detailed_explanation, targetLanguage, currentLanguage),
         fix_suggestion: await translateText(clause.fix_suggestion, targetLanguage, currentLanguage),
         issue_type: await translateText(clause.issue_type, targetLanguage, currentLanguage),
         severity: await translateText(clause.severity, targetLanguage, currentLanguage)
-      });
+      };
+      translatedClauses.push(translatedClause);
+      translatedResult.clauses = [...translatedClauses];
+      setAnalysis({ ...translatedResult });
     }
-    translatedResult.clauses = translatedClauses;
 
+    setTranslationProgress("Translation completed!");
     return translatedResult;
   };
 
@@ -175,6 +201,7 @@ const DocumentManagement: React.FC = () => {
       setMessage("Translation failed. Showing current content.");
     } finally {
       setTranslating(false);
+      setTranslationProgress("");
     }
   };
 
@@ -182,6 +209,15 @@ const DocumentManagement: React.FC = () => {
     const selectedFile = e.target.files?.[0] || null;
     setFile(selectedFile);
     setMessage("");
+  };
+
+  // Function to simulate delay for sample data
+  const delayedSampleData = (): Promise<AnalysisResult> => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve(sampleData);
+      }, 10000); // 10 second delay
+    });
   };
 
   const handleUpload = async () => {
@@ -212,7 +248,9 @@ const DocumentManagement: React.FC = () => {
         setMessage("✅ Document uploaded successfully.");
         analysisData = await response.json();
       } else {
-        analysisData = sampleData; // fallback
+        // Use delayed sample data for fallback
+        setMessage("Processing document... Please wait.");
+        analysisData = await delayedSampleData();
         setMessage("✅ Document uploaded successfully");
       }
       
@@ -221,7 +259,9 @@ const DocumentManagement: React.FC = () => {
       setSelectedLanguage(SupportedLanguages.ENGLISH);
       setCurrentLanguage(SupportedLanguages.ENGLISH);
     } catch (error) {
-      const analysisData = sampleData; // fallback
+      // Use delayed sample data for error case too
+      setMessage("Processing document... Please wait.");
+      const analysisData = await delayedSampleData();
       setOriginalAnalysis(analysisData);
       setAnalysis({ ...analysisData, isTranslated: false });
       setSelectedLanguage(SupportedLanguages.ENGLISH);
@@ -246,6 +286,18 @@ const DocumentManagement: React.FC = () => {
         return 'English';
       case SupportedLanguages.HINDI:
         return 'हिंदी (Hindi)';
+      case SupportedLanguages.BENGALI:
+        return 'বাংলা (Bengali)';
+      case SupportedLanguages.TELUGU:
+        return 'తెలుగు (Telugu)';
+      case SupportedLanguages.TAMIL:
+        return 'தமிழ் (Tamil)';
+      case SupportedLanguages.GUJARATI:
+        return 'ગુજરાતી (Gujarati)';
+      case SupportedLanguages.MARATHI:
+        return 'मराठी (Marathi)';
+      case SupportedLanguages.KANNADA:
+        return 'ಕನ್ನಡ (Kannada)';
       default:
         return lang;
     }
@@ -286,7 +338,14 @@ const DocumentManagement: React.FC = () => {
                 </option>
               ))}
             </select>
-            {translating && <span className="text-sm text-blue-600">Translating...</span>}
+            {translating && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-blue-600">Translating...</span>
+                {translationProgress && (
+                  <span className="text-xs text-gray-500">({translationProgress})</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
