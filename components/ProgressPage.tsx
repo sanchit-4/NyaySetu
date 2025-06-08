@@ -1,10 +1,5 @@
 import React, { useEffect, useState } from "react";
-import {
-  ChartBarIcon,
-  BookOpenIcon,
-  CheckCircleIcon,
-  QuizIcon,
-} from "./icons";
+import { ChartBarIcon, BookOpenIcon, CheckCircleIcon, QuizIcon } from "./icons";
 import {
   User,
   LearningModule as LearningModuleType,
@@ -121,7 +116,8 @@ const ProgressPage: React.FC<ProgressPageProps> = ({ user }) => {
             <div className="flex items-center mb-2">
               <BookOpenIcon className="w-6 h-6 text-indigo-500 mr-2" />
               <span className="text-lg text-mediumtext">
-                {totalLessonsRead} / {totalLessons} {pageLabels.lessonsCompleted}
+                {totalLessonsRead} / {totalLessons}{" "}
+                {pageLabels.lessonsCompleted}
               </span>
             </div>
             <div className="w-full bg-gray-200/50 rounded-full h-8 overflow-hidden shadow-inner">
@@ -216,7 +212,9 @@ const ProgressPage: React.FC<ProgressPageProps> = ({ user }) => {
                               ? "bg-yellow-500"
                               : "bg-red-500"
                           } h-2.5 rounded-full`}
-                          style={{ width: `${module.quizScoreData.percentage}%` }}
+                          style={{
+                            width: `${module.quizScoreData.percentage}%`,
+                          }}
                         ></div>
                       )}
                     </div>

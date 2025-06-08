@@ -23,7 +23,8 @@ export const PATHS = {
   DOCUMENTS: '/dashboard/documents',
   PROGRESS: '/dashboard/progress', // New
   ABOUT_US: '/dashboard/about', // New
-  CONTACT: '/dashboard/contact', // New
+  CONTACT: '/dashboard/contact',
+  FLASHCARDS: '/dashboard/flashcards' // New
 };
 
 export const AUTH_MODES = {

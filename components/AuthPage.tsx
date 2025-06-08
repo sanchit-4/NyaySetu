@@ -1,3 +1,4 @@
+
 import React, { useState, FormEvent } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom'; // Keep useNavigate for potential future use if needed, but not for post-auth redirect here.
 import { User } from '../types';
@@ -66,10 +67,10 @@ const AuthPage: React.FC<AuthPageProps> = ({ onAuthSuccess }) => {
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-light via-blue-300 to-sky-200 flex flex-col justify-center py-12 sm:px-6 lg:px-8 animate-fadeIn">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md animate-slideInLeft">
-        <LogoIcon className="mx-auto h-12 w-auto text-primary animate-floating" />
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-darktext animate-slideInRight">
+    <div className="min-h-screen bg-lightbg flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <LogoIcon className="mx-auto h-12 w-auto text-primary" />
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-darktext">
           {isLogin ? 'Log in to your account' : `Create your ${APP_NAME} account`}
         </h2>
         <p className="mt-2 text-center text-sm text-mediumtext">
@@ -86,8 +87,8 @@ const AuthPage: React.FC<AuthPageProps> = ({ onAuthSuccess }) => {
         </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md animate-slideInRight" style={{ animationDelay: '0.2s' }}>
-        <div className="bg-white/90 backdrop-blur-sm py-8 px-4 shadow-lg sm:rounded-lg sm:px-10 hover-scale">
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white py-8 px-4 shadow-lg sm:rounded-lg sm:px-10">
           <form className="space-y-6" onSubmit={handleSubmit}>
             {!isLogin && (
               <Input
@@ -139,7 +140,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onAuthSuccess }) => {
             </div>
           </form>
 
-          <div className="mt-6 animate-fadeIn" style={{ animationDelay: '0.4s' }}>
+          <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-300" />
