@@ -42,7 +42,7 @@ const TopNavbar: React.FC<TopNavbarProps> = ({ user, onLogout }) => {
     contact: "About Us", // Changed from "Contact"
     signedInAs: "Signed in as",
     logout: "Logout",
-    flashcards: "Flashcards", // Added flashcards label
+    flashcards: "Fact check", // Added flashcards label
   });
 
   useEffect(() => {
@@ -55,7 +55,7 @@ const TopNavbar: React.FC<TopNavbarProps> = ({ user, onLogout }) => {
         contact: await translate("About Us"), // Changed from "Contact"
         signedInAs: await translate("Signed in as"),
         logout: await translate("Logout"),
-        flashcards: await translate("Flashcards"), // Translate flashcards label
+        flashcards: await translate("Fact check"), // Translate flashcards label
       });
     };
     translateLabels();
